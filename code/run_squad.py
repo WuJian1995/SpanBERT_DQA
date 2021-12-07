@@ -13,6 +13,8 @@ from io import open
 
 import numpy as np
 import torch
+from utils.write_prediction_files import write_prediction_files
+from hotpot_evaluate_v1 import normalize_answer, f1_score
 from torch.utils.data import DataLoader, TensorDataset
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
 from pytorch_pretrained_bert.modeling import BertForQuestionAnswering
@@ -42,7 +44,9 @@ class SquadExample(object):
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
-                 is_impossible=None):
+                 is_impossible=None,
+                 all_answers=None):
+        self.all_answers = all_answers
         self.qas_id = qas_id
         self.question_text = question_text
         self.doc_tokens = doc_tokens
@@ -134,6 +138,13 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                 end_position = None
                 orig_answer_text = None
                 is_impossible = False
+                if 'final_answers' in qa:
+                    all_answers = qa['final_answers']
+                else:
+                    all_answers = []
+                for answers in qa['answers']:
+                    all_answers += [a['text'] for a in answers]
+
                 if is_training:
                     if version_2_with_negative:
                         is_impossible = qa["is_impossible"]
@@ -157,7 +168,6 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                                 start_position = -1
                                 end_position = -1
                                 orig_answer_text = ""
-
                 example = SquadExample(
                     qas_id=qas_id,
                     question_text=question_text,
@@ -165,7 +175,8 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                     orig_answer_text=orig_answer_text,
                     start_position=start_position,
                     end_position=end_position,
-                    is_impossible=is_impossible)
+                    is_impossible=is_impossible,
+                    all_answers=all_answers)
                 examples.append(example)
     return examples
 
@@ -356,9 +367,7 @@ RawResult = collections.namedtuple("RawResult",
                                    ["unique_id", "start_logits", "end_logits"])
 
 
-def make_predictions(all_examples, all_features, all_results, n_best_size,
-                     max_answer_length, do_lower_case, verbose_logging,
-                     version_2_with_negative):
+def make_predictions(all_examples, all_features, all_results, n_best_size , max_answer_length, do_lower_case, verbose_logging, version_2_with_negative, output_nbest_file,output_prediction_file,write_prediction=True):
     example_index_to_features = collections.defaultdict(list)
     for feature in all_features:
         example_index_to_features[feature.example_index].append(feature)
@@ -372,6 +381,9 @@ def make_predictions(all_examples, all_features, all_results, n_best_size,
     all_predictions = collections.OrderedDict()
     all_nbest_json = collections.OrderedDict()
     scores_diff_json = collections.OrderedDict()
+
+    all_predictions_dev = collections.OrderedDict()
+    all_nbest_json_dev = collections.OrderedDict()
 
     for (example_index, example) in enumerate(all_examples):
         features = example_index_to_features[example_index]
@@ -503,6 +515,41 @@ def make_predictions(all_examples, all_features, all_results, n_best_size,
             scores_diff_json[example.qas_id] = score_diff
             all_predictions[example.qas_id] = best_non_null_entry.text
         all_nbest_json[example.qas_id] = nbest_json
+
+        all_predictions_dev[example.qas_id] = (nbest_json[0]["text"], example.all_answers)
+        all_nbest_json_dev[example.qas_id] = nbest_json
+    write_prediction_files(all_predictions_dev,all_nbest_json_dev,output_prediction_file,output_nbest_file)
+    # if write_prediction:
+    #     logger.info("Writing predictions to: %s" % (output_prediction_file))
+    #     logger.info("Writing nbest to: %s" % (output_nbest_file))
+    #
+    #     with open(output_prediction_file, "w") as writer:
+    #         writer.write(json.dumps(all_predictions_dev, indent=4) + "\n")
+    #
+    #     with open(output_nbest_file, "w") as writer:
+    #         writer.write(json.dumps(all_nbest_json_dev, indent=4) + "\n")
+    #     probs = _compute_softmax(total_scores)
+    #     nbest_json = []
+    #     for (i, entry) in enumerate(nbest):
+    #         output = collections.OrderedDict()
+    #         output['text'] = entry.text
+    #         output['probability'] = probs[i]
+    #         nbest_json.append(output)
+    #
+    #     assert len(nbest_json) >= 1
+    #     # print(example.all_answers)
+    #     all_predictions[example.qas_id] = (nbest_json[0]["text"], example.all_answers)
+    #     all_nbest_json[example.qas_id] = nbest_json
+    #
+    # if write_prediction:
+    #     logger.info("Writing predictions to: %s" % (output_prediction_file))
+    #     logger.info("Writing nbest to: %s" % (output_nbest_file))
+    #
+    #     with open(output_prediction_file, "w") as writer:
+    #         writer.write(json.dumps(all_predictions, indent=4) + "\n")
+    #
+    #     with open(output_nbest_file, "w") as writer:
+    #         writer.write(json.dumps(all_nbest_json, indent=4) + "\n")
 
     return all_predictions, all_nbest_json, scores_diff_json
 
@@ -765,12 +812,13 @@ def evaluate(args, model, device, eval_dataset, eval_dataloader,
             all_results.append(RawResult(unique_id=unique_id,
                                          start_logits=start_logits,
                                          end_logits=end_logits))
-
+    nbest_file_name=args.output_dir+'/'+args.prefix+'output_nbest_file.json'
+    prediction_file_name=args.output_dir +'/'+args.prefix+ 'output_prediction_file.json'
     preds, nbest_preds, na_probs = \
         make_predictions(eval_examples, eval_features, all_results,
                          args.n_best_size, args.max_answer_length,
                          args.do_lower_case, args.verbose_logging,
-                         args.version_2_with_negative)
+                         args.version_2_with_negative,nbest_file_name,prediction_file_name,True)
 
     if pred_only:
         if args.version_2_with_negative:
@@ -1103,7 +1151,7 @@ if __name__ == "__main__":
         parser.add_argument("--warmup_proportion", default=0.1, type=float,
                             help="Proportion of training to perform linear learning rate warmup for. E.g., 0.1 = 10%% "
                                  "of training.")
-        parser.add_argument("--n_best_size", default=20, type=int,
+        parser.add_argument("--n_best_size", default=4, type=int,
                             help="The total number of n-best predictions to generate in the nbest_predictions.json "
                                  "output file.")
         parser.add_argument("--max_answer_length", default=30, type=int,
