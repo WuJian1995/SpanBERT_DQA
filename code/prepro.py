@@ -18,17 +18,10 @@ title_e = "</title>"
 
 def get_dataloader(logger, args, input_file, subqueries_file, is_training, \
                    batch_size, num_epochs, tokenizer):
-    prepro = True
-    if prepro:
-        train_examples = read_squad_examples(
-            logger=logger, input_file=input_file, subqueries_file=subqueries_file, \
-            is_training=is_training, debug=args.debug, \
-            merge_query=args.merge_query, only_comp=args.only_comp)
-    elif args.model == 'classifier':
+
+
+    if args.model == 'classifier':
         train_examples = read_classification_examples(
-            logger=logger, input_file=input_file, is_training=is_training, debug=args.debug)
-    elif args.model == 'span-predictor':
-        train_examples = read_span_predictor_examples(
             logger=logger, input_file=input_file, is_training=is_training, debug=args.debug)
 
     else:
@@ -399,6 +392,7 @@ def read_classification_examples(logger, input_file, is_training, debug):
 
 
     input_file, decomposed_files = input_file.split(',', 1)
+
     with open(input_file, 'r') as f:
         orig_data = json.load(f)['data']
 

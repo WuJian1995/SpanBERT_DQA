@@ -10,7 +10,7 @@ import re
 import string
 import sys
 from io import open
-
+from collections import defaultdict
 import numpy as np
 import torch
 from utils.write_prediction_files import write_prediction_files
@@ -23,7 +23,7 @@ from pytorch_pretrained_bert.tokenization import (BasicTokenizer,
                                                   BertTokenizer,
                                                   whitespace_tokenize)
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
@@ -812,8 +812,8 @@ def evaluate(args, model, device, eval_dataset, eval_dataloader,
             all_results.append(RawResult(unique_id=unique_id,
                                          start_logits=start_logits,
                                          end_logits=end_logits))
-    nbest_file_name=args.output_dir+'/'+args.prefix+'output_nbest_file.json'
-    prediction_file_name=args.output_dir +'/'+args.prefix+ 'output_prediction_file.json'
+    nbest_file_name='data/decomposed-predictions/'+args.prefix+'output_nbest_file.json'
+    prediction_file_name='data/decomposed-predictions/'+args.prefix+ 'output_prediction_file.json'
     preds, nbest_preds, na_probs = \
         make_predictions(eval_examples, eval_features, all_results,
                          args.n_best_size, args.max_answer_length,
