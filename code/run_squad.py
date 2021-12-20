@@ -501,7 +501,7 @@ def make_predictions(all_examples, all_features, all_results, n_best_size , max_
         for (i, entry) in enumerate(nbest):
             output = collections.OrderedDict()
             output["text"] = entry.text
-            output["probability"] = probs[i]
+            output["probability"] = total_scores[i]
             output["start_logit"] = entry.start_logit
             output["end_logit"] = entry.end_logit
             nbest_json.append(output)

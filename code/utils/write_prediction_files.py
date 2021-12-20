@@ -10,8 +10,8 @@ def write_prediction_files(all_predictions,all_nbest_json,output_prediction_file
         logger.info("Writing predictions to: %s" % (output_prediction_file))
         logger.info("Writing nbest to: %s" % (output_nbest_file))
 
-        with open(output_prediction_file, "a") as writer:
+        with open(output_prediction_file, "w") as writer:
             writer.write(json.dumps(all_predictions, indent=4) + "\n")
 
-        with open(output_nbest_file, "a") as writer:
+        with open(output_nbest_file, "w") as writer:
             writer.write(json.dumps(all_nbest_json, indent=4) + "\n")
