@@ -21,6 +21,13 @@ def find_max(dict_data):
                 max=float(item['probability'])
                 result[key]=item
     return result
+def merge(one_hop_dict,multi_dict):
+    result=OrderedDict()
+    for key,value in one_hop_dict.items():
+        if key in multi_dict:
+            value.extend(multi_dict[key])
+        result[key] = value
+    return result
 
 def find_max_in_dicts(one_hop_dict,multi_dict):
     result_dict=OrderedDict()
@@ -39,17 +46,18 @@ with open(input_file1, "r", encoding='utf-8') as reader:
     dict1 = json.load(reader)
 with open(input_file2, "r", encoding='utf-8') as reader:
     dict2 = json.load(reader)
-new_dict_1=find_max(dict1)
-new_dict_2=find_max(dict2)
-preds=find_max_in_dicts(new_dict_2,new_dict_1)
-with open(dev_file) as f:
-    dataset_json = json.load(f)
-eval_dataset = dataset_json['data']
-exact_raw, f1_raw = get_raw_scores(eval_dataset, preds)
-result = make_eval_dict(exact_raw, f1_raw)
-logger.info("***** Eval results *****")
-for key in sorted(result.keys()):
-    logger.info("  %s = %s", key, str(result[key]))
+result=merge(dict2,dict1)
+# new_dict_1=find_max(dict1)
+# new_dict_2=find_max(dict2)
+# preds=find_max_in_dicts(new_dict_2,new_dict_1)
+# with open(dev_file) as f:
+#     dataset_json = json.load(f)
+# eval_dataset = dataset_json['data']
+# exact_raw, f1_raw = get_raw_scores(eval_dataset, preds)
+# result = make_eval_dict(exact_raw, f1_raw)
+# logger.info("***** Eval results *****")
+# for key in sorted(result.keys()):
+#     logger.info("  %s = %s", key, str(result[key]))
 with open('final.json', 'w') as f:
     json.dump(result, f)
 print(result)
